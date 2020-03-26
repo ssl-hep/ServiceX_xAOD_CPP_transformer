@@ -62,6 +62,10 @@ def callback(channel, method, properties, body):
     # _chunks = transform_request['chunks']
     servicex = ServiceXAdapter(_server_endpoint)
 
+    servicex.post_status_update(file_id=_file_id,
+                                status_code="start",
+                                info="xAOD Transformer")
+
     tick = time.time()
     file_done = False
     file_retries = 0
@@ -78,7 +82,9 @@ def callback(channel, method, properties, body):
                 object_store.upload_file(_request_id, root_file, output_path)
                 os.remove(output_path)
 
-            servicex.post_status_update("File " + _file_path + " complete")
+            servicex.post_status_update(file_id=_file_id,
+                                        status_code="complete",
+                                        info="Total time " + str(round(tock - tick, 2)))
 
             servicex.put_file_complete(_file_path, _file_id, "success",
                                     num_messages=0,
@@ -97,10 +103,21 @@ def callback(channel, method, properties, body):
                 servicex.put_file_complete(file_path=_file_path, file_id=_file_id,
                                         status='failure', num_messages=0, total_time=0,
                                         total_events=0, total_bytes=0)
+
+                servicex.post_status_update(file_id=_file_id,
+                                            status_code="failure",
+                                            info= " error: " + str(error)[0:1024])
+
                 file_done = True
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 traceback.print_tb(exc_traceback, limit=20, file=sys.stdout)
                 print(exc_value)
+            else:
+                servicex.post_status_update(file_id=_file_id,
+                                            status_code="retry",
+                                            info="Try: " + str(file_retries) +
+                                                 " error: " + str(error)[0:1024])
+
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
 
@@ -123,8 +140,9 @@ def transform_single_file(file_path, output_path, servicex=None):
         flat_tree_name = flat_file.keys()[0]
         attr_name_list = flat_file[flat_tree_name].keys()
 
-        arrow_writer = ArrowWriter(file_format=args.result_format, servicex=servicex,
-                                   object_store=object_store, messaging=messaging)
+        arrow_writer = ArrowWriter(file_format=args.result_format,
+                                   object_store=object_store,
+                                   messaging=messaging)
         # NB: We're converting the *output* ROOT file to Arrow arrays
         # TODO: Implement configurable chunk_size
         event_iterator = UprootEvents(file_path=output_path, tree_name=flat_tree_name,
@@ -132,6 +150,7 @@ def transform_single_file(file_path, output_path, servicex=None):
         transformer = UprootTransformer(event_iterator)
         arrow_writer.write_branches_to_arrow(transformer=transformer, topic_name=args.request_id,
                                              file_id=None, request_id=args.request_id)
+        print("Kafka Timings: "+str(arrow_writer.messaging_timings))
 
 
 def compile_code():
