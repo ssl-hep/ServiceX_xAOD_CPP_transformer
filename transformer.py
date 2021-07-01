@@ -54,6 +54,7 @@ MAX_RETRIES = 3
 
 messaging = None
 object_store = None
+posix_path = None
 
 
 def initialize_logging(request=None):
@@ -177,7 +178,7 @@ def callback(channel, method, properties, body):
         try:
             # Do the transform
             root_file = _file_path.replace('/', ':')
-            output_path = '/home/atlas/' + root_file
+            output_path = posix_path + root_file
             logger.info("Processing {}, file id: {}".format(root_file, _file_id))
             (total_events, output_size) = transform_single_file(_file_path, output_path, _chunks, servicex)
 
@@ -324,6 +325,12 @@ if __name__ == "__main__":
     elif not args.output_dir and args.result_destination == 'object-store':
         messaging = None
         object_store = ObjectStoreManager()
+        posix_path = '/home/atlas'
+    elif args.result_destination == 'volume':
+        messaging = None
+        object_store = None
+        posix_path = args.output_dir
+
 
     compile_code()
     startup_time = get_process_info()
