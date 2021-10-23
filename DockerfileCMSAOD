@@ -4,9 +4,8 @@ USER root
 # We need to turn off the `epel` repo as CERN has removed
 # all files connected with that.
 # Make sure python is ready to install a few extra (old) modules as well. 
-RUN yum-config-manager --disable epel &&\
-    yum -y update &&\
-    yum -y install openssl-devel
+RUN yum -y update &&\
+    yum -y install openssl-devel openssl lzma-devel lzma
 
 # Install a modern version of Python
 WORKDIR /python-build
@@ -20,6 +19,7 @@ RUN wget https://www.python.org/ftp/python/3.6.2/Python-3.6.2.tar.xz &&\
 
 # Install everything needed to host/run the analysis jobs
 WORKDIR /servicex
+USER cmsusr
 COPY requirements.txt .
 RUN python3.6 -m pip install --user safety==1.8.7
 RUN python3.6 -m pip install --user -r requirements.txt
