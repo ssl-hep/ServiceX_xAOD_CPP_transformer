@@ -95,7 +95,8 @@ def parse_output_logs(logfile):
         matches = events_processed_re.finditer(buf)
         for m in matches:
             events_processed = int(m.group(1))
-        logger.info("{} events processed out of {} total events".format(events_processed, total_events))
+        logger.info("{} events processed out of {} total events".format(
+            events_processed, total_events))
     return total_events, events_processed
 
 
@@ -154,8 +155,9 @@ def log_stats(startup_time, elapsed_time, running_time=0.0):
 def callback(channel, method, properties, body):
     transform_request = json.loads(body)
     _request_id = transform_request['request-id']
-    _file_path = transform_request['file-path']
-    # .encode('ascii', 'ignore')
+    _file_paths = transform_request['paths'].split(',')
+    print('all replicas', _file_paths)
+    _file_path = _file_paths[0]
     _file_id = transform_request['file-id']
     _server_endpoint = transform_request['service-endpoint']
     _chunks = transform_request['chunk-size']
@@ -179,7 +181,8 @@ def callback(channel, method, properties, body):
             root_file = _file_path.replace('/', ':')
             output_path = '/home/atlas/' + root_file
             logger.info("Processing {}, file id: {}".format(root_file, _file_id))
-            (total_events, output_size) = transform_single_file(_file_path, output_path, _chunks, servicex)
+            (total_events, output_size) = transform_single_file(
+                _file_path, output_path, _chunks, servicex)
 
             tock = time.time()
             total_time = round(tock - tick, 2)
@@ -258,7 +261,8 @@ def transform_single_file(file_path, output_path, chunks, servicex=None):
     """
 
     logger.info("Transforming a single path: " + str(file_path) + " into " + output_path)
-    r = os.system('bash /generated/runner.sh -r -d ' + file_path + ' -o ' + output_path + '| tee log.txt')
+    r = os.system('bash /generated/runner.sh -r -d ' + file_path +
+                  ' -o ' + output_path + '| tee log.txt')
     # This command is not available in all images!
     # os.system('/usr/bin/sync log.txt')
     total_events, _ = parse_output_logs("log.txt")
@@ -306,8 +310,10 @@ def compile_code():
     if r != 0:
         with open('log.txt', 'r') as f:
             errors = f.read()
-            logger.error("Unable to compile the code - error return: " + str(r) + 'errors: ' + errors)
-            raise RuntimeError("Unable to compile the code - error return: " + str(r) + "errors: \n" + errors)
+            logger.error("Unable to compile the code - error return: " +
+                         str(r) + 'errors: ' + errors)
+            raise RuntimeError("Unable to compile the code - error return: " +
+                               str(r) + "errors: \n" + errors)
 
 
 if __name__ == "__main__":
