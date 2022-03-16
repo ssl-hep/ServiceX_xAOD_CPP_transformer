@@ -158,7 +158,7 @@ def callback(channel, method, properties, body):
     # .encode('ascii', 'ignore')
     _file_id = transform_request['file-id']
     _server_endpoint = transform_request['service-endpoint']
-    _chunks = transform_request['chunk-size']
+    _chunks = transform_request['chunk-size'] if 'chunk-size' in transform_request else 1000
     servicex = ServiceXAdapter(_server_endpoint)
 
     servicex.post_status_update(file_id=_file_id,
