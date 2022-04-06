@@ -50,6 +50,7 @@ MAX_RETRIES = 3
 
 messaging = None
 object_store = None
+posix_path = None
 
 
 def initialize_logging(request=None):
@@ -160,6 +161,9 @@ def callback(channel, method, properties, body):
                                 status_code="start",
                                 info=os.environ["DESC"])
 
+    if not os.path.isdir(posix_path):
+        os.makedirs(posix_path)
+
     tick = time.time()
 
     file_done = False
@@ -172,7 +176,8 @@ def callback(channel, method, properties, body):
         try:
             # Do the transform
             root_file = _file_path.replace('/', ':')
-            output_path = '/home/atlas/' + root_file
+            output_path = os.path.join(posix_path, root_file)
+
             logger.info("Processing {}, file id: {}".format(root_file, _file_id))
             (total_events, output_size) = transform_single_file(_file_path, output_path, servicex)
 
@@ -299,9 +304,14 @@ if __name__ == "__main__":
 
     logger = initialize_logging(args.request_id)
 
-    if not args.output_dir and args.result_destination == 'object-store':
-        messaging = None
+    if args.output_dir:
+        object_store = None
+    if args.result_destination == 'object-store':
+        posix_path = "/home/atlas"
         object_store = ObjectStoreManager()
+    elif args.result_destination == 'volume':
+        object_store = None
+        posix_path = args.output_dir
 
     compile_code()
     startup_time = get_process_info()
