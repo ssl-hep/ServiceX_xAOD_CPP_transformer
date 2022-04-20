@@ -23,3 +23,7 @@ RUN echo "#!/bin/bash" > proxy-exporter.sh &&\
 COPY transformer.py transformer-actual.py
 COPY transformer-shim.py transformer.py
 WORKDIR /home/atlas
+
+RUN chmod 755 /home/cmsusr/.local /home/cmsusr/.local/lib /home/cmsusr/.local/lib/python3.6 \
+              /home/cmsusr/.local/lib/python3.6/site-packages
+RUN chgrp 0 /home/atlas && chmod g+w /home/atlas
