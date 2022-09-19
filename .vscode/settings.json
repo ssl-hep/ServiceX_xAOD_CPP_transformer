@@ -6,5 +6,8 @@
         "servicex",
         "sslhep",
         "xaod"
+    ],
+    "githubPullRequests.ignoredPullRequestBranches": [
+        "develop"
     ]
 }

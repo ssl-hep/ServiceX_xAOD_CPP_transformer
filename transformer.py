@@ -27,6 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import json
 import logging
+import logstash
 import os
 import time
 import timeit
@@ -34,15 +35,11 @@ from collections import namedtuple
 import re
 
 import psutil
-import uproot
 
 from servicex.transformer.servicex_adapter import ServiceXAdapter
 from servicex.transformer.transformer_argument_parser import TransformerArgumentParser
 from servicex.transformer.object_store_manager import ObjectStoreManager
 from servicex.transformer.rabbit_mq_manager import RabbitMQManager
-from servicex.transformer.uproot_events import UprootEvents
-from servicex.transformer.uproot_transformer import UprootTransformer
-from servicex.transformer.arrow_writer import ArrowWriter
 
 
 MAX_RETRIES = 3
@@ -50,6 +47,38 @@ MAX_RETRIES = 3
 messaging = None
 object_store = None
 posix_path = None
+
+
+instance = os.environ.get('INSTANCE_NAME', 'Unknown')
+
+
+class LogstashFormatter(logstash.formatter.LogstashFormatterBase):
+
+    def format(self, record):
+        message = {
+            '@timestamp': self.format_timestamp(record.created),
+            '@version': '1',
+            'message': record.getMessage(),
+            'host': self.host,
+            'path': record.pathname,
+            'tags': self.tags,
+            'type': self.message_type,
+            'instance': instance,
+            'component': 'servicex_app',
+
+            # Extra Fields
+            'level': record.levelname,
+            'logger_name': record.name,
+        }
+
+        # Add extra fields
+        message.update(self.get_extra_fields(record))
+
+        # If exception, add debug info
+        if record.exc_info:
+            message.update(self.get_debug_fields(record))
+
+        return self.serialize(message)
 
 
 def initialize_logging(request=None):
@@ -61,7 +90,6 @@ def initialize_logging(request=None):
     """
 
     log = logging.getLogger()
-    instance = os.environ.get('INSTANCE_NAME', 'Unknown')
     formatter = logging.Formatter('%(levelname)s ' +
                                   "{} {} {} ".format(instance, os.environ["INSTANCE"], request) +
                                   '%(message)s')
@@ -70,6 +98,17 @@ def initialize_logging(request=None):
     handler.setLevel(logging.INFO)
     log.addHandler(handler)
     log.setLevel(logging.INFO)
+
+    logstash_host = os.environ.get('LOGSTASH_HOST')
+    logstash_port = os.environ.get('LOGSTASH_PORT')
+
+    if (logstash_host and logstash_port):
+        logstash_handler = logstash.TCPLogstashHandler(logstash_host, logstash_port, version=1)
+        logstash_formatter = LogstashFormatter('logstash', None, None)
+        logstash_handler.setFormatter(logstash_formatter)
+        logstash_handler.setLevel(logging.INFO)
+        log.logger.addHandler(logstash_handler)
+
     return log
 
 
@@ -243,7 +282,7 @@ def callback(channel, method, properties, body):
               'io-wait': elapsed_process_times.iowait,
               'total-time': elapsed_process_times.total_time,
               'wall-time': total_time}
-    logger.info("Metric: {}".format(json.dumps(record)))
+    logger.info("Metric", extra=record)
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
 
